@@ -3,7 +3,6 @@
 #include <ESP32_Supabase.h>
 #include <ArduinoJson.h>
 
-// db pwd is 4LQPBQ4x7vbipCAu
 static const String SUPA_URL = "https://<redacted>.supabase.co";
 static const String SUPA_ANON_KEY = "<redacted>";
 static const String SUPA_MEASUREMENT_TABLE = "measurements";
