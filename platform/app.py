@@ -190,7 +190,7 @@ with st.container():
     if actions_cols[0].button("Refresh raw data"):
         st.rerun()
     if actions_cols[1].button("Roll up/down shade", disabled=True):
-        pass
+        raise NotImplementedError()
 
     col1.write("#### Overview from last day")
 
