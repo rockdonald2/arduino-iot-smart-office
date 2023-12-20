@@ -4,12 +4,12 @@
 #include <ArduinoJson.h>
 
 // db pwd is 4LQPBQ4x7vbipCAu
-static const String SUPA_URL = "https://havphroqrobahjpvhzat.supabase.co";
-static const String SUPA_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhdnBocm9xcm9iYWhqcHZoemF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDMwODgwNTEsImV4cCI6MjAxODY2NDA1MX0.guSHYuVdZEzsR7Ru14xt-MfpfKhctmLAHR1371gaUUQ";
+static const String SUPA_URL = "https://<redacted>.supabase.co";
+static const String SUPA_ANON_KEY = "<redacted>";
 static const String SUPA_MEASUREMENT_TABLE = "measurements";
 
 static const char* SSID = "HUAWEI-J1BD2C";
-static const char* PASSWORD = "5b2ec2ad";
+static const char* PASSWORD = "<redacted>";
 
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 WiFiServer server(80);
