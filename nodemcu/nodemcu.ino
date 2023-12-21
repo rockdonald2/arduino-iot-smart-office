@@ -2,17 +2,19 @@
 #include <SPI.h>
 #include <ESP32_Supabase.h>
 #include <ArduinoJson.h>
+#include <arduino-timer.h>
 
 static const String SUPA_URL = "https://<redacted>.supabase.co";
 static const String SUPA_ANON_KEY = "<redacted>";
 static const String SUPA_MEASUREMENT_TABLE = "measurements";
 
-static const char* SSID = "HUAWEI-J1BD2C";
-static const char* PASSWORD = "<redacted>";
+static const char *SSID = "HUAWEI-J1BD2C";
+static const char *PASSWORD = "<redacted>";
 
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 WiFiServer server(80);
 Supabase db;
+auto timer = timer_create_default();
 
 struct Data {
   uint8_t temperature;
@@ -29,8 +31,6 @@ static const byte CMD_GETTEMP = 0x01;
 static const byte CMD_GETHUM = 0x02;
 static const byte CMD_GETLIGHT = 0x03;
 
-const unsigned long currLoopDelay = 5;  // in seconds
-
 void setup() {
   Serial.println(F("[cfg]------------"));
   Serial.begin(9600);
@@ -39,18 +39,18 @@ void setup() {
   Serial.println('\n');
 
   connectToWifi();
-  startServer();
+  startHttpServer();
   connectToSupabase();
+
+  timer.every(500, handleClient);    // look for HTTP clients every 500ms
+  timer.every(1000, handleData);     // request data every 1s
+  timer.every(15 * 1000, saveData);  //  save data to DB every 15s
 
   Serial.println(F("[cfg]------------"));
 }
 
 void loop() {
-  handleData();
-  handleClient();
-  saveData();
-
-  delay(currLoopDelay * 1000);
+  timer.tick();
 }
 
 void connectToSupabase() {
@@ -81,7 +81,7 @@ void connectToWifi() {
   WiFi.setAutoReconnect(true);
 }
 
-void startServer() {
+void startHttpServer() {
   server.begin();
   Serial.println(F("Server started"));
 
@@ -91,10 +91,10 @@ void startServer() {
   Serial.println(F("/"));
 }
 
-void handleClient() {
+bool handleClient(void *argument) {
   WiFiClient client = server.accept();
   if (!client) {
-    return;
+    return true;
   }
 
   Serial.println(F("New client on HTTP interface"));
@@ -131,9 +131,11 @@ void handleClient() {
   delay(1);
   Serial.println(F("Client disonnected"));
   Serial.println(F(""));
+
+  return true;
 }
 
-void handleData() {
+bool handleData(void *argument) {
   SPI.beginTransaction(spi_settings);
 
   sendSpiGetTempCmd();                 // request for temp
@@ -182,6 +184,8 @@ void handleData() {
     Serial.println(F("Checksum validation failed, dismissing values"));
     data.shouldWrite = false;
   }
+
+  return true;
 }
 
 uint8_t sendSpiGetTempCmd() {
@@ -209,13 +213,13 @@ uint8_t sendSpiAwait() {
 }
 
 bool isHttpOk(int code) {
-  return ((int) (code / 100)) == 2;
+  return ((int)(code / 100)) == 2;
 }
 
-void saveData() {
+bool saveData(void *argument) {
   if (!data.shouldWrite) {
     Serial.println(F("Skipping writing data as shouldWrite flag is false"));
-    return;
+    return true;
   }
 
   Serial.println(F("Trying to save all the measurements into Supabase"));
@@ -250,4 +254,6 @@ void saveData() {
   if (!isHttpOk(retCode)) {
     Serial.println(F("Something went wrong"));
   }
+
+  return true;
 }
