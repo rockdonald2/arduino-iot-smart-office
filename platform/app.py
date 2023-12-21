@@ -12,8 +12,17 @@ st.set_page_config(
 )
 
 conn = st.connection("supabase", type=SupabaseConnection)
-measurements = conn.query("*", table="measurements", ttl=0).execute()
-# with 0 I disable caching, we want this realtime
+measurements = (
+    conn.query(
+        "measured_at, temperature, humidity, lightness",
+        table="measurements",
+        ttl=0,
+    )
+    .gte("measured_at", arrow.utcnow().shift(days=-7).datetime.isoformat())
+    .order("measured_at", desc=True)
+    .limit(5000)
+    .execute()
+)
 
 st.title("Smart Office Monitoring Dashboard")
 st.write("To always safely know the state of your office.")
@@ -54,22 +63,23 @@ def get_temperature_chart():
 
     date_domain = [
         to_altair_datetime(arrow.utcnow().shift(days=-7).datetime.isoformat()),
-        to_altair_datetime(arrow.utcnow().datetime.isoformat()),
+        to_altair_datetime(arrow.utcnow().shift(hours=6).datetime.isoformat()),
     ]
     lines = (
         alt.Chart(temperature_data, height=500, title="Temperature Chart (last 7 days)")
-        .mark_line(clip=True)
+        .mark_line(clip=True, point=True)
         .encode(
             x=alt.X(
                 "measured_at:T",
                 title="Measurement Time",
-                axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
+                # axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
                 scale=alt.Scale(domain=date_domain),
             ),
             y=alt.Y(
                 "temp:Q",
                 title="Temperature (°C)",
                 scale=alt.Scale(domain=[10, 30]),
+                impute=alt.ImputeParams(value=None),
             ),
         )
     )
@@ -116,22 +126,23 @@ def get_humidity_chart():
 
     date_domain = [
         to_altair_datetime(arrow.utcnow().shift(days=-7).datetime.isoformat()),
-        to_altair_datetime(arrow.utcnow().datetime.isoformat()),
+        to_altair_datetime(arrow.utcnow().shift(hours=6).datetime.isoformat()),
     ]
     lines = (
         alt.Chart(humidity_data, height=500, title="Humidity Chart (last 7 days)")
-        .mark_line(clip=True)
+        .mark_line(clip=True, point=True)
         .encode(
             x=alt.X(
                 "measured_at:T",
                 title="Measurement Time",
-                axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
+                # axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
                 scale=alt.Scale(domain=date_domain),
             ),
             y=alt.Y(
                 "hum:Q",
                 title="Humidity (%)",
                 scale=alt.Scale(domain=[5, 65]),
+                impute=alt.ImputeParams(value=None),
             ),
         )
     )
@@ -178,22 +189,23 @@ def get_light_chart():
 
     date_domain = [
         to_altair_datetime(arrow.utcnow().shift(days=-7).datetime.isoformat()),
-        to_altair_datetime(arrow.utcnow().datetime.isoformat()),
+        to_altair_datetime(arrow.utcnow().shift(hours=6).datetime.isoformat()),
     ]
     lines = (
         alt.Chart(light_data, height=500, title="Brightness Chart (last 7 days)")
-        .mark_line(clip=True)
+        .mark_line(clip=True, point=True)
         .encode(
             x=alt.X(
                 "measured_at:T",
                 title="Measurement Time",
-                axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
+                # axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
                 scale=alt.Scale(domain=date_domain),
             ),
             y=alt.Y(
                 "light:Q",
                 title="Brightness (lux)",
                 scale=alt.Scale(domain=[1, 500]),
+                impute=alt.ImputeParams(value=None),
             ),
         )
     )
