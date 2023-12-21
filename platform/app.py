@@ -12,17 +12,18 @@ st.set_page_config(
 )
 
 conn = st.connection("supabase", type=SupabaseConnection)
-measurements = (
-    conn.query(
-        "measured_at, temperature, humidity, lightness",
-        table="measurements",
-        ttl=0,
+with st.spinner("Wait for it..."):
+    measurements = (
+        conn.query(
+            "measured_at, temperature, humidity, lightness",
+            table="measurements",
+            ttl=0,
+        )
+        .gte("measured_at", arrow.utcnow().shift(days=-7).datetime.isoformat())
+        .order("measured_at", desc=True)
+        .limit(5000)
+        .execute()
     )
-    .gte("measured_at", arrow.utcnow().shift(days=-7).datetime.isoformat())
-    .order("measured_at", desc=True)
-    .limit(5000)
-    .execute()
-)
 
 st.title("Smart Office Monitoring Dashboard")
 st.write("To always safely know the state of your office.")
@@ -46,7 +47,7 @@ def get_temperature_chart():
         data={
             "measured_at": list(
                 map(
-                    lambda elem: pd.to_datetime(elem["measured_at"], origin="unix"),
+                    lambda elem: arrow.get(elem["measured_at"]).datetime,
                     measurements.data,
                 )
             ),
@@ -67,12 +68,11 @@ def get_temperature_chart():
     ]
     lines = (
         alt.Chart(temperature_data, height=500, title="Temperature Chart (last 7 days)")
-        .mark_line(clip=True, point=True)
+        .mark_line(clip=True, point=False)
         .encode(
             x=alt.X(
                 "measured_at:T",
                 title="Measurement Time",
-                # axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
                 scale=alt.Scale(domain=date_domain),
             ),
             y=alt.Y(
@@ -130,12 +130,11 @@ def get_humidity_chart():
     ]
     lines = (
         alt.Chart(humidity_data, height=500, title="Humidity Chart (last 7 days)")
-        .mark_line(clip=True, point=True)
+        .mark_line(clip=True, point=False)
         .encode(
             x=alt.X(
                 "measured_at:T",
                 title="Measurement Time",
-                # axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
                 scale=alt.Scale(domain=date_domain),
             ),
             y=alt.Y(
@@ -193,12 +192,11 @@ def get_light_chart():
     ]
     lines = (
         alt.Chart(light_data, height=500, title="Brightness Chart (last 7 days)")
-        .mark_line(clip=True, point=True)
+        .mark_line(clip=True, point=False)
         .encode(
             x=alt.X(
                 "measured_at:T",
                 title="Measurement Time",
-                # axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
                 scale=alt.Scale(domain=date_domain),
             ),
             y=alt.Y(
@@ -243,6 +241,7 @@ with st.container():
 
     actions_cols = col1.columns(5)
     if actions_cols[0].button("Refresh raw data"):
+        st.toast("Latest data has been requested.", icon="🔄")
         st.rerun()
     if actions_cols[1].button("Roll up/down shade", disabled=True):
         raise NotImplementedError()
