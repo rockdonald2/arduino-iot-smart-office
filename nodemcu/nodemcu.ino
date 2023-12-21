@@ -208,9 +208,14 @@ uint8_t sendSpiAwait() {
   return SPI.transfer(CMD_AWAIT);
 }
 
+bool isHttpOk(int code) {
+  return ((int) (code / 100)) == 2;
+}
+
 void saveData() {
   if (!data.shouldWrite) {
     Serial.println(F("Skipping writing data as shouldWrite flag is false"));
+    return;
   }
 
   Serial.println(F("Trying to save all the measurements into Supabase"));
@@ -242,7 +247,7 @@ void saveData() {
   Serial.print(F("Received status code: "));
   Serial.println(retCode);
 
-  if (((int)retCode / 100) != 2) {
+  if (!isHttpOk(retCode)) {
     Serial.println(F("Something went wrong"));
   }
 }

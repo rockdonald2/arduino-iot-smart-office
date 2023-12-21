@@ -19,12 +19,25 @@ st.title("Smart Office Monitoring Dashboard")
 st.write("To always safely know the state of your office.")
 
 
+def to_altair_datetime(dt):
+    dt = pd.to_datetime(dt)
+    return alt.DateTime(
+        year=dt.year,
+        month=dt.month,
+        date=dt.day,
+        hours=dt.hour,
+        minutes=dt.minute,
+        seconds=dt.second,
+        milliseconds=0.001 * dt.microsecond,
+    )
+
+
 def get_temperature_chart():
     temperature_data = pd.DataFrame(
         data={
             "measured_at": list(
                 map(
-                    lambda elem: arrow.get(elem["measured_at"]).datetime,
+                    lambda elem: pd.to_datetime(elem["measured_at"], origin="unix"),
                     measurements.data,
                 )
             ),
@@ -38,13 +51,23 @@ def get_temperature_chart():
         on="mouseover",
         empty=False,
     )
+
+    date_domain = [
+        to_altair_datetime(arrow.utcnow().shift(days=-7).datetime.isoformat()),
+        to_altair_datetime(arrow.utcnow().datetime.isoformat()),
+    ]
     lines = (
-        alt.Chart(temperature_data, height=500, title="Temperature Monitoring")
-        .mark_line()
+        alt.Chart(temperature_data, height=500, title="Temperature Chart (last 7 days)")
+        .mark_line(clip=True)
         .encode(
-            x=alt.X("measured_at", title="Measurement Time"),
+            x=alt.X(
+                "measured_at:T",
+                title="Measurement Time",
+                axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
+                scale=alt.Scale(domain=date_domain),
+            ),
             y=alt.Y(
-                "temp",
+                "temp:Q",
                 title="Temperature (°C)",
                 scale=alt.Scale(domain=[10, 30]),
             ),
@@ -90,13 +113,23 @@ def get_humidity_chart():
         on="mouseover",
         empty=False,
     )
+
+    date_domain = [
+        to_altair_datetime(arrow.utcnow().shift(days=-7).datetime.isoformat()),
+        to_altair_datetime(arrow.utcnow().datetime.isoformat()),
+    ]
     lines = (
-        alt.Chart(humidity_data, height=500, title="Humidity Monitoring")
-        .mark_line()
+        alt.Chart(humidity_data, height=500, title="Humidity Chart (last 7 days)")
+        .mark_line(clip=True)
         .encode(
-            x=alt.X("measured_at", title="Measurement Time"),
+            x=alt.X(
+                "measured_at:T",
+                title="Measurement Time",
+                axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
+                scale=alt.Scale(domain=date_domain),
+            ),
             y=alt.Y(
-                "hum",
+                "hum:Q",
                 title="Humidity (%)",
                 scale=alt.Scale(domain=[5, 65]),
             ),
@@ -142,13 +175,23 @@ def get_light_chart():
         on="mouseover",
         empty=False,
     )
+
+    date_domain = [
+        to_altair_datetime(arrow.utcnow().shift(days=-7).datetime.isoformat()),
+        to_altair_datetime(arrow.utcnow().datetime.isoformat()),
+    ]
     lines = (
-        alt.Chart(light_data, height=500, title="Brightness Monitoring")
-        .mark_line()
+        alt.Chart(light_data, height=500, title="Brightness Chart (last 7 days)")
+        .mark_line(clip=True)
         .encode(
-            x=alt.X("measured_at", title="Measurement Time"),
+            x=alt.X(
+                "measured_at:T",
+                title="Measurement Time",
+                axis=alt.Axis(format="%a %d, %H:%M:%S", labelAngle=-30),
+                scale=alt.Scale(domain=date_domain),
+            ),
             y=alt.Y(
-                "light",
+                "light:Q",
                 title="Brightness (lux)",
                 scale=alt.Scale(domain=[1, 500]),
             ),
@@ -231,7 +274,7 @@ with st.container():
     )
 
     overview_cols[2].metric(
-        label="Avg. Brightness (%)",
+        label="Avg. Brightness (lux)",
         help="Average brightness in the office from last day",
         value=f"""{round(
             statistics.mean(
