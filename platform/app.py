@@ -12,6 +12,8 @@ st.set_page_config(
 )
 
 conn = st.connection("supabase", type=SupabaseConnection)
+# majd az inserteles, ahhoz, hogy cmd-ket kuldjunk a nodemcu-ra
+# a conn.table().insert()-el fog menni
 with st.spinner("Wait for it..."):
     measurements = (
         conn.query(
