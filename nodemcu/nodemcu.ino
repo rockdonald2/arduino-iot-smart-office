@@ -21,10 +21,11 @@ struct Data {
   uint8_t temperature;
   uint8_t humidity;
   float lightness;
+  uint8_t isShadeUp;
   bool shouldWrite;
 };
 
-volatile Data data = { 255, 255, -1, false };
+volatile Data data = { 255, 255, -1, 255, false };
 
 struct Command {
   int id;
@@ -38,6 +39,7 @@ static const byte CMD_CHECKSUM = 0xFE;
 static const byte CMD_GETTEMP = 0x01;
 static const byte CMD_GETHUM = 0x02;
 static const byte CMD_GETLIGHT = 0x03;
+static const byte CMD_GETSHADEPOS = 0x04;
 
 static const byte CMD_ROLL = 0x80;
 
@@ -171,7 +173,9 @@ void handleData() {
   rawLight[0] = sendSpiGetLightCmd();
   rawLight[1] = sendSpiGetLightCmd();
   rawLight[2] = sendSpiGetLightCmd();
-  rawLight[3] = sendSpiChecksum();
+  rawLight[3] = sendSpiGetShadePos();
+
+  uint8_t shadePos = sendSpiChecksum();
 
   uint8_t checksum = sendSpiAwait();
 
@@ -183,6 +187,7 @@ void handleData() {
   validation ^= rawLight[1];
   validation ^= rawLight[2];
   validation ^= rawLight[3];
+  validation ^= shadePos;
 
   Serial.print(F("Received checksum: "));
   Serial.println(checksum, DEC);
@@ -192,6 +197,7 @@ void handleData() {
   if (checksum == validation) {
     data.temperature = temp;
     data.humidity = hum;
+    data.isShadeUp = shadePos;
 
     float f;
     memcpy(&f, rawLight, 4);
@@ -203,6 +209,8 @@ void handleData() {
     Serial.println(data.humidity);
     Serial.print(F("Received lightness: "));
     Serial.println(data.lightness);
+    Serial.print(F("Received shade position: "));
+    Serial.println(data.isShadeUp);
 
     data.shouldWrite = true;
   } else {
@@ -275,6 +283,11 @@ uint8_t sendSpiChecksum() {
   return SPI.transfer(CMD_CHECKSUM);
 }
 
+uint8_t sendSpiGetShadePos() {
+  Serial.println(F("Sending get shade position command to SPI interface"));
+  return SPI.transfer(CMD_GETSHADEPOS);
+}
+
 uint8_t sendSpiAwait() {
   return SPI.transfer(CMD_AWAIT);
 }
@@ -308,6 +321,12 @@ bool saveDataToDB(void *argument) {
     doc["lightness"] = data.lightness;
   } else {
     doc["lightness"] = nullptr;
+  }
+
+  if (data.isShadeUp != 255) {
+    doc["is_shade_up"] = data.isShadeUp == 0x00 ? false : true;
+  } else {
+    doc["is_shade_up"] = nullptr;
   }
 
   String json;

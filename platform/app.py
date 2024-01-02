@@ -16,7 +16,7 @@ conn = st.connection("supabase", type=SupabaseConnection)
 with st.spinner("Wait for it..."):
     measurements = (
         conn.query(
-            "measured_at, temperature, humidity, lightness",
+            "measured_at, temperature, humidity, lightness, is_shade_up",
             table="measurements",
             ttl=0,
         )
@@ -266,7 +266,7 @@ with st.container():
         )
     )
 
-    overview_cols = col1.columns(3)
+    overview_cols = col1.columns(4)
     overview_cols[0].metric(
         label="Avg. Temperature (°C)",
         help="Average temperature in the office from last day",
@@ -298,6 +298,15 @@ with st.container():
             ),
             1,
         )} lux""",
+    )
+
+    overview_cols[3].metric(
+        label="Shade is currently",
+        value="Unknown"
+        if len(data_from_last_day) == 0
+        else "Up"
+        if data_from_last_day[0]["is_shade_up"]
+        else "Down",
     )
 
     col2.altair_chart(temperature_chart.interactive(), use_container_width=True)

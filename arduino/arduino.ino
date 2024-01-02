@@ -42,6 +42,7 @@ static const byte CMD_CHECKSUM = 0xFE;
 static const byte CMD_GETTEMP = 0x01;
 static const byte CMD_GETHUM = 0x02;
 static const byte CMD_GETLIGHT = 0x03;
+static const byte CMD_GETSHADEPOS = 0x04;
 
 static const byte CMD_ROLL = 0x80;
 
@@ -185,26 +186,18 @@ void executeCommand(byte command) {
     if (spiLight.transferred > 3) {
       spiLight.transferred = 0;
     }
+  } else if (command == CMD_GETSHADEPOS) {
+    SPDR = isShadeUp ? 0x01 : 0x00;
+
+    updateChecksum(isShadeUp ? 0x01 : 0x00);
   } else if (command == CMD_CHECKSUM) {
     SPDR = spiChecksum;
   } else if (command == CMD_ROLL) {
-    // uint8_t newSwitchValue;
-
-    // if (data.switchState == LOW) {
-    //   newSwitchValue = HIGH;
-    // } else {
-    //   newSwitchValue = LOW;
-    // }
-
     changeShadeMode(false);
 
-    // we don't want to use any of these, we just want to semantically switch the switch's value
-    // data.switchState = newSwitchValue;
-    // prevData.switchState = data.switchState;
-    // digitalWrite(...)
-
-    // respond back to nodemcu
     SPDR = 0x00;
+
+    // no need to update checksum, this is a remote command
   } else {
     SPDR = CMD_AWAIT;
 
