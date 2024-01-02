@@ -7,6 +7,7 @@
 static const String SUPA_URL = "https://<redacted>.supabase.co";
 static const String SUPA_ANON_KEY = "<redacted>";
 static const String SUPA_MEASUREMENT_TABLE = "measurements";
+static const String SUPA_COMMANDS_TABLE = "commands";
 
 static const char *SSID = "HUAWEI-J1BD2C";
 static const char *PASSWORD = "<redacted>";
@@ -25,11 +26,20 @@ struct Data {
 
 volatile Data data = { 255, 255, -1, false };
 
+struct Command {
+  int id;
+  uint8_t code;
+};
+
+volatile Command cmd = { -1, 255 };
+
 static const byte CMD_AWAIT = 0xFF;
 static const byte CMD_CHECKSUM = 0xFE;
 static const byte CMD_GETTEMP = 0x01;
 static const byte CMD_GETHUM = 0x02;
 static const byte CMD_GETLIGHT = 0x03;
+
+static const byte CMD_ROLL = 0x80;
 
 void setup() {
   Serial.println(F("[cfg]------------"));
@@ -42,9 +52,10 @@ void setup() {
   startHttpServer();
   connectToSupabase();
 
-  timer.every(500, handleClient);    // look for HTTP clients every 500ms
-  timer.every(1000, handleData);     // request data every 1s
-  timer.every(15 * 1000, saveData);  //  save data to DB every 15s
+  timer.every(500, handleHttpClient);              // look for HTTP clients every 500ms
+  timer.every(1000, handleSpiCommunication);       // request data every 1s and other SPI tasks
+  timer.every(15 * 1000, saveDataToDB);            // save data to DB every 15s
+  timer.every(10 * 1000, checkForRemoteCommands);  // check for remote commands from UI every 10s
 
   Serial.println(F("[cfg]------------"));
 }
@@ -91,7 +102,7 @@ void startHttpServer() {
   Serial.println(F("/"));
 }
 
-bool handleClient(void *argument) {
+bool handleHttpClient(void *argument) {
   WiFiClient client = server.accept();
   if (!client) {
     return true;
@@ -135,7 +146,21 @@ bool handleClient(void *argument) {
   return true;
 }
 
-bool handleData(void *argument) {
+bool handleSpiCommunication(void *argument) {
+  // if there is any command to execute, we need to pause collecting the data
+
+  if (cmd.id != -1) {
+    Serial.println(F("Skipping data collection as there is a remote command to execute"));
+    handleRemoteCommand();
+    return true;
+  }
+
+  Serial.println(F("Collecting data"));
+  handleData();
+  return true;
+}
+
+void handleData() {
   SPI.beginTransaction(spi_settings);
 
   sendSpiGetTempCmd();                 // request for temp
@@ -184,8 +209,50 @@ bool handleData(void *argument) {
     Serial.println(F("Checksum validation failed, dismissing values"));
     data.shouldWrite = false;
   }
+}
 
-  return true;
+void handleRemoteCommand() {
+  SPI.beginTransaction(spi_settings);
+
+  if (cmd.code == CMD_ROLL) {
+    sendSpiRollShadeCmd();
+  } else {
+    // what to do if invalid command comes in
+    // it should be handled by the normal flow below, anyway the verdict won't be 0
+  }
+
+  uint8_t verdict = sendSpiAwait();
+
+  SPI.endTransaction();
+
+  // contract is to return hexa 0 which means success
+  if (verdict == 0x00) {
+    Serial.print(F("Remote command execution was successful for command code: "));
+    Serial.println(cmd.code, DEC);
+
+    int retCode = db.update(SUPA_COMMANDS_TABLE).eq("id", String(cmd.id)).doUpdate("{\"is_completed\": true}");
+    db.urlQuery_reset();
+
+    Serial.print(F("Received status code after remote command update: "));
+    Serial.println(retCode);
+
+    if (!isHttpOk(retCode)) {
+      Serial.println(F("Something went wrong"));
+    }
+  } else {
+    Serial.print(F("Remote command failed for command code: "));
+    Serial.println(cmd.code, DEC);
+
+    // we should delete it, or let it rerun?
+  }
+
+  cmd.id = -1;
+  cmd.code = 255;
+}
+
+uint8_t sendSpiRollShadeCmd() {
+  Serial.println(F("Sending roll shade command to SPI interface"));
+  return SPI.transfer(CMD_ROLL);
 }
 
 uint8_t sendSpiGetTempCmd() {
@@ -216,14 +283,14 @@ bool isHttpOk(int code) {
   return ((int)(code / 100)) == 2;
 }
 
-bool saveData(void *argument) {
+bool saveDataToDB(void *argument) {
   if (!data.shouldWrite) {
     Serial.println(F("Skipping writing data as shouldWrite flag is false"));
     return true;
   }
 
   Serial.println(F("Trying to save all the measurements into Supabase"));
-  StaticJsonDocument<50> doc;
+  StaticJsonDocument<64> doc;
 
   if (data.temperature != 255) {
     doc["temperature"] = data.temperature;
@@ -247,12 +314,72 @@ bool saveData(void *argument) {
   serializeJson(doc, json);
 
   int retCode = db.insert(SUPA_MEASUREMENT_TABLE, json, false);
+  db.urlQuery_reset();
 
   Serial.print(F("Received status code: "));
   Serial.println(retCode);
 
   if (!isHttpOk(retCode)) {
     Serial.println(F("Something went wrong"));
+  }
+
+  return true;
+}
+
+bool checkForRemoteCommands(void *argument) {
+  String queryResult = db.from(SUPA_COMMANDS_TABLE)
+                         .select("id,command_code")
+                         .eq("is_completed", "false")
+                         .order("created_at", "asc", true)
+                         .limit(1)
+                         .doSelect();
+
+  db.urlQuery_reset();
+
+  if (queryResult.isEmpty()) {
+    Serial.println(F("Nothing to execute remotely"));
+    return true;
+  }
+
+  Serial.print(F("Received remote command: "));
+  Serial.println(queryResult);
+
+  StaticJsonDocument<96> queryDoc;
+  DeserializationError error = deserializeJson(queryDoc, queryResult);
+
+  if (error) {
+    Serial.print(F("Deserialization of remote commands failed: "));
+    Serial.println(error.c_str());
+    return true;
+  }
+
+  if (queryDoc.containsKey("message")) {
+    Serial.print(F("Remote command query returned with an error: "));
+    const char *error = queryDoc["message"];
+    Serial.println(error);
+    return true;
+  }
+
+  JsonArray commands = queryDoc.as<JsonArray>();
+
+  if (commands.size() == 0) {
+    Serial.println(F("Nothing to execute remotely"));
+    return true;
+  }
+
+  const char *commandCode = commands[0]["command_code"];  // "0x80"
+  int commandId = commands[0]["id"];
+
+  unsigned long convertedCommandCode = strtoul(commandCode, NULL, 16);
+
+  cmd.id = commandId;
+
+  if (convertedCommandCode <= UINT8_MAX) {
+    cmd.code = (uint8_t)convertedCommandCode;
+  } else {
+    Serial.println(F("Invalid command received, skipping"));
+    cmd.id = -1;
+    cmd.code = 255;
   }
 
   return true;

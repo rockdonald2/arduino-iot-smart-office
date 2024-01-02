@@ -10,10 +10,12 @@
 const int lcdSize = 21;
 const int stepsPerRevolution = 32;
 int stepCount = 0;
+
 bool isAutoShade = true;
 bool isShadeUp = true;
+unsigned long shadePausedFor = 0;
+
 const unsigned long currLoopDelay = 1;  // in seconds
-unsigned long pausedFor = 0;
 
 const int warmWeatherThres = 20;
 const int lightnessThres = 200;
@@ -40,6 +42,8 @@ static const byte CMD_CHECKSUM = 0xFE;
 static const byte CMD_GETTEMP = 0x01;
 static const byte CMD_GETHUM = 0x02;
 static const byte CMD_GETLIGHT = 0x03;
+
+static const byte CMD_ROLL = 0x80;
 
 struct Data {
   int temperature;
@@ -118,9 +122,8 @@ void loop(void) {
   }  // to get them on the same page
 
   if (data.switchState != prevData.switchState) {
-    isAutoShade = false;
+    changeShadeMode(false);
     prevData.switchState = data.switchState;
-    pausedFor = 0;
   }
 
   lcd.setCursor(13, 1);
@@ -184,6 +187,24 @@ void executeCommand(byte command) {
     }
   } else if (command == CMD_CHECKSUM) {
     SPDR = spiChecksum;
+  } else if (command == CMD_ROLL) {
+    // uint8_t newSwitchValue;
+
+    // if (data.switchState == LOW) {
+    //   newSwitchValue = HIGH;
+    // } else {
+    //   newSwitchValue = LOW;
+    // }
+
+    changeShadeMode(false);
+
+    // we don't want to use any of these, we just want to semantically switch the switch's value
+    // data.switchState = newSwitchValue;
+    // prevData.switchState = data.switchState;
+    // digitalWrite(...)
+
+    // respond back to nodemcu
+    SPDR = 0x00;
   } else {
     SPDR = CMD_AWAIT;
 
@@ -244,7 +265,7 @@ void motorEvent() {
     // override the decision, if up lower, if down turn up
 
     // == 0 means we're on the first manual override, after this we just wait for the time to pass
-    if (pausedFor == 0) {
+    if (shadePausedFor == 0) {
       if (isShadeUp) {
         Serial.println(F("Rolling down shade on manual mode"));
         lcd.setCursor(16, 1);
@@ -260,13 +281,12 @@ void motorEvent() {
       }
     }
 
-    pausedFor += currLoopDelay;
+    shadePausedFor += currLoopDelay;
     Serial.print(F("Auto shade paused for: "));
-    Serial.println(pausedFor);
+    Serial.println(shadePausedFor);
 
-    if (pausedFor > pausedForThres) {  // 60 * 1s
-      isAutoShade = true;
-      pausedFor = 0;
+    if (shadePausedFor > pausedForThres) {  // 60 * 1s
+      changeShadeMode(true);
     }
   }
 }
@@ -686,4 +706,9 @@ void configureSPI() {
   SPCR |= bit(SPE);
   pinMode(MISO, OUTPUT);
   SPI.attachInterrupt();
+}
+
+void changeShadeMode(bool autoMode) {
+  isAutoShade = autoMode;
+  shadePausedFor = 0;
 }

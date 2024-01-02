@@ -12,8 +12,7 @@ st.set_page_config(
 )
 
 conn = st.connection("supabase", type=SupabaseConnection)
-# majd az inserteles, ahhoz, hogy cmd-ket kuldjunk a nodemcu-ra
-# a conn.table().insert()-el fog menni
+
 with st.spinner("Wait for it..."):
     measurements = (
         conn.query(
@@ -245,8 +244,12 @@ with st.container():
     if actions_cols[0].button("Refresh raw data"):
         st.toast("Latest data has been requested.", icon="🔄")
         st.rerun()
-    if actions_cols[1].button("Roll up/down shade", disabled=True):
-        raise NotImplementedError()
+    if actions_cols[1].button("Roll up/down shade"):
+        conn.table("commands").insert({"command_code": "0x80"}, count=None).execute()
+        st.toast(
+            "Rolling up/down shade. Action can take up to a minute to complete.",
+            icon="🌞",
+        )
 
     col1.write("#### Overview from last day")
 
