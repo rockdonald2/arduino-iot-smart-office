@@ -266,48 +266,51 @@ with st.container():
         )
     )
 
-    overview_cols = col1.columns(4)
-    overview_cols[0].metric(
-        label="Avg. Temperature (°C)",
-        help="Average temperature in the office from last day",
-        value=f"""{round(
-            statistics.mean(
-                list(map(lambda elem: elem['temperature'], data_from_last_day))
-            ),
-            1,
-        )} °C""",
-    )
+    if len(data_from_last_day) == 0:
+        col1.write('No data for last period.')
+    else:
+        overview_cols = col1.columns(4)
+        overview_cols[0].metric(
+            label="Avg. Temperature (°C)",
+            help="Average temperature in the office from last day",
+            value=f"""{round(
+                statistics.mean(
+                    list(map(lambda elem: elem['temperature'], data_from_last_day))
+                ),
+                1,
+            )} °C""",
+        )
 
-    overview_cols[1].metric(
-        label="Avg. Humidity (%)",
-        help="Average humidity in the office from last day",
-        value=f"""{round(
-            statistics.mean(
-                list(map(lambda elem: elem['humidity'], data_from_last_day))
-            ),
-            1,
-        )} %""",
-    )
+        overview_cols[1].metric(
+            label="Avg. Humidity (%)",
+            help="Average humidity in the office from last day",
+            value=f"""{round(
+                statistics.mean(
+                    list(map(lambda elem: elem['humidity'], data_from_last_day))
+                ),
+                1,
+            )} %""",
+        )
 
-    overview_cols[2].metric(
-        label="Avg. Brightness (lux)",
-        help="Average brightness in the office from last day",
-        value=f"""{round(
-            statistics.mean(
-                list(map(lambda elem: elem['lightness'], data_from_last_day))
-            ),
-            1,
-        )} lux""",
-    )
+        overview_cols[2].metric(
+            label="Avg. Brightness (lux)",
+            help="Average brightness in the office from last day",
+            value=f"""{round(
+                statistics.mean(
+                    list(map(lambda elem: elem['lightness'], data_from_last_day))
+                ),
+                1,
+            )} lux""",
+        )
 
-    overview_cols[3].metric(
-        label="Shade is currently",
-        value="Unknown"
-        if len(data_from_last_day) == 0
-        else "Up"
-        if data_from_last_day[0]["is_shade_up"]
-        else "Down",
-    )
+        overview_cols[3].metric(
+            label="Shade is currently",
+            value="Unknown"
+            if len(data_from_last_day) == 0
+            else "Up"
+            if data_from_last_day[0]["is_shade_up"]
+            else "Down",
+        )
 
     col2.altair_chart(temperature_chart.interactive(), use_container_width=True)
 

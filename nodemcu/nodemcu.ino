@@ -4,13 +4,13 @@
 #include <ArduinoJson.h>
 #include <arduino-timer.h>
 
-static const String SUPA_URL = "https://<redacted>.supabase.co";
-static const String SUPA_ANON_KEY = "<redacted>";
+static const String SUPA_URL = "";
+static const String SUPA_ANON_KEY = "";
 static const String SUPA_MEASUREMENT_TABLE = "measurements";
 static const String SUPA_COMMANDS_TABLE = "commands";
 
-static const char *SSID = "HUAWEI-J1BD2C";
-static const char *PASSWORD = "<redacted>";
+static const char *SSID = "";
+static const char *PASSWORD = "";
 
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 WiFiServer server(80);
